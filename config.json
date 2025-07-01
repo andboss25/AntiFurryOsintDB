@@ -12,5 +12,38 @@
         "pintress",
         "reddit",
         "roblox"
-    ]
+    ],
+    "vector_types":{
+        "username":{
+            "username":"text",
+            "platform":"options",
+            "%platform_opt!":{
+                "option_list":"supported_platforms"
+            }
+        },
+        "gps_adress":{
+            "country":"text",
+            "state":"text",
+            "city":"text",
+            "zip_code":"text",
+            "lat":"text",
+            "long":"text",
+            "accuracy":"text",
+            "accuracy_radius":"text",
+            "got_from":"text"
+        },
+        "ip_adress":{
+            "ip_adress":"text"
+        },
+        "link":{
+            "link":"text",
+            "details":"text"
+        },
+        "email":{
+            "email_adress":"text"
+        },
+        "phone_number":{
+            "phone_number":"text"
+        }
+    }
 }

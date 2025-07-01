@@ -22,11 +22,18 @@ def LandingPage():
     targets.reverse() # Reverse the targets list to show the new ones at the top
 
     for target in targets:
-        if target[1] == "username":
-            username_data = cursor.execute("SELECT username,platform FROM usernames WHERE target_id=? AND is_starting_vector=1",(target[0],)).fetchone()
-            start_vector_element = f"<p>Username: {username_data[0]}</p> <p>Platform: {username_data[1]}</p>"
+        v_data = cursor.execute(f"SELECT * FROM {target[1]}s WHERE target_id=? AND is_starting_vector=1",(target[0],)).fetchone()
 
-        yield f"<p>Id: {target[0]}</p> {start_vector_element} <p>Details: {target[2]}</p>"
+        index = 0
+
+        for x in Config.GetConfig()["vector_types"][target[1]]:
+            if x.startswith("%"):
+                pass
+            else:
+                yield f"<p>{x}: {v_data[index]}</p>"
+                index = index + 1
+            
+        yield f"<p>Id: {target[0]}</p> <p>Details: {target[2]}</p>"
         yield f"<a href='/target/view/{target[0]}'>View target in more detail</a>"
         yield "<hr>"
     
@@ -50,7 +57,10 @@ def UploadTarget():
 
         if start_vector_type == None:
             yield "<label for='start_vector_type'>Start vector type:</label>"
-            yield "<select id='start_vector_type'><option>Select One</option><option>username</option></select>"
+            yield "<select id='start_vector_type'><option>Select One</option>"
+            for vector_type in Config.GetConfig()["vector_types"]:
+                yield f"<option>{vector_type}</option>"
+            yield "</select>"
             yield '<script>document.getElementById("start_vector_type").onchange = function(){if (document.getElementsByTagName("option")[document.getElementById("start_vector_type").selectedIndex].value != "Select One") {window.location.href = "/target/upload?svt=" + document.getElementsByTagName("option")[document.getElementById("start_vector_type").selectedIndex].value}}</script>'
         else:
             yield "<textarea id='details' placeholder='Details about target'></textarea>"
@@ -58,66 +68,145 @@ def UploadTarget():
             yield "<hr>"
             yield f"<p> Start vector type: {start_vector_type}</p>"
 
-            if start_vector_type == "username":
-                yield "<label for='username'>Username:</label>"
-                yield "<input type='text' id='username'/>"
-                yield "<label for='platform'>Platform:</label>"
-                yield "<select id='platform'>"
-                for platform in Config.GetConfig()["supported_platforms"]:
-                    yield f"<option>{platform}</option>"
-                yield "</select>"
-                yield "<button id='submit'>Submit data</button>"
-                yield """<script>
-    document.getElementById("submit").onclick = function () {
-        resp = fetch("/api/target/post",{
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        method:"POST",
-        mode: "cors",
-        body: JSON.stringify({ start_vector_type: 'username' , details:document.getElementById("details").value}),
-    })  .then((response) => response.json())
-  .then((data) => {
-            fetch("/api/vector/post",{
-            method:"POST",
+            r = []
+            for vector_type in Config.GetConfig()["vector_types"]:
+                if vector_type == start_vector_type:
+                    for field in Config.GetConfig()["vector_types"][vector_type]:
+                        if Config.GetConfig()["vector_types"][vector_type][field] == "text":
+                            yield f"<label for='{field}'>{field}:</label>"
+                            yield f"<input type='text' id='{field}'/>"
+                            r.append(f'{field}:document.getElementById("{field}").value,')
+                        elif Config.GetConfig()["vector_types"][vector_type][field] == "options":
+                            yield f"<label for='{field}'>{field}:</label>"
+                            yield f"<select id='{field}'>"
+                            for opt in Config.GetConfig()[Config.GetConfig()["vector_types"][vector_type]["%" + field + "_opt!"]['option_list']]:
+                                yield f"<option>{opt}</option>"
+                            yield "</select>"
+                            r.append(f'{field}:document.getElementsByTagName("option")[document.getElementById("{field}").selectedIndex].value,')
+                    yield "<button id='submit'>Submit data</button>"
+                    yield """<script>
+        document.getElementById("submit").onclick = function () {
+            resp = fetch("/api/target/post",{
             headers: {
-                "Accept":"application/json", 
-                "Content-Type":"application/json"
+                'Content-Type': 'application/json'
             },
+            method:"POST",
             mode: "cors",
-            body: JSON.stringify({
-                type:'username',
-                username:document.getElementById("username").value,
-                platform:document.getElementsByTagName("option")[document.getElementById("platform").selectedIndex].value,
-                target_id:data.Target.Id,
-                is_starting:true
-            })
+            body: JSON.stringify({ start_vector_type: '""" + start_vector_type + """' , details:document.getElementById("details").value}),
+        })  .then((response) => response.json())
+    .then((data) => {
+                fetch("/api/vector/post",{
+                method:"POST",
+                headers: {
+                    "Accept":"application/json", 
+                    "Content-Type":"application/json"
+                },
+                mode: "cors",
+                body: JSON.stringify({
+                    type:'""" + start_vector_type + """',
+                    """ + ''.join(r) + """
+                    target_id:data.Target.Id,
+                    is_starting:true
+                })
 
-    })
-    window.location.href = '/target/view/' + data.Target.Id;
-    })}
-</script>"""
+        })
+        window.location.href = '/target/view/' + data.Target.Id;
+        })}
+    </script>"""
     
     return flask.stream_with_context(generate())
 
 @App.route("/target/view/<target_id>")
 def ViewTarget(target_id):
-    yield "<h1>View Target</h1>"
-    yield "<hr>"
-    
-    conn,cursor = Conn.GetDBConnection()
-    target = cursor.execute("SELECT id,start_vector_type,details FROM targets WHERE id=?",(target_id)).fetchone()
+    def generator():
+        yield "<h1>View Target</h1>"
+        yield '<a href="/">Go back to Target dashboard</a>'
+        yield "<hr>"
+        
+        conn,cursor = Conn.GetDBConnection()
+        target = cursor.execute("SELECT id,start_vector_type,details FROM targets WHERE id=?",(target_id)).fetchone()
+        v_data = cursor.execute(f"SELECT * FROM {target[1]}s WHERE target_id=? AND is_starting_vector=1",(target[0],)).fetchone()
 
-    if target[1] == "username":
-        username_data = cursor.execute("SELECT username,platform FROM usernames WHERE target_id=? AND is_starting_vector=1",(target[0],)).fetchone()
-        start_vector_element = f"<p>Username: {username_data[0]}</p> <p>Platform: {username_data[1]}</p>"
+        index = 0
 
-    yield f"<p>Id: {target[0]}</p> {start_vector_element} <p>Details: {target[2]}</p>"
-    yield "<hr>"
+        for x in Config.GetConfig()["vector_types"][target[1]]:
+            if x.startswith("%"):
+                pass
+            else:
+                yield f"<p>{x}: {v_data[index]}</p>"
+                index = index + 1
+                
+        yield f"<p>Id: {target[0]}</p> <p>Details: {target[2]}</p>"
+        yield "<hr>"
 
-    conn.commit()
-    cursor.close()
-    conn.close()
+        for l in Config.GetConfig()["vector_types"]:
+            data = cursor.execute(f"SELECT * FROM {l}s WHERE target_id=? AND is_starting_vector=0",(target[0],)).fetchall()
+
+            for dataz in data:
+                index = 0
+                for x in Config.GetConfig()["vector_types"][l]:
+                    if x.startswith("%"):
+                        pass
+                    else:
+                        try:
+                            yield f"<p>{x}: {dataz[index]}</p>"
+                            index = index + 1
+                        except:
+                            pass
+        
+        try:
+            yield f"<p id='vector_type'>Selected vector type: {request.args["vt"]}<p/>"
+            r = []
+            for vector_type in Config.GetConfig()["vector_types"]:
+                if vector_type == request.args["vt"]:
+                    for field in Config.GetConfig()["vector_types"][vector_type]:
+                        if Config.GetConfig()["vector_types"][vector_type][field] == "text":
+                            yield f"<label for='{field}'>{field}:</label>"
+                            yield f"<input type='text' id='{field}'/>"
+                            r.append(f'{field}:document.getElementById("{field}").value,')
+                        elif Config.GetConfig()["vector_types"][vector_type][field] == "options":
+                            yield f"<label for='{field}'>{field}:</label>"
+                            yield f"<select id='{field}'>"
+                            for opt in Config.GetConfig()[Config.GetConfig()["vector_types"][vector_type]["%" + field + "_opt!"]['option_list']]:
+                                yield f"<option>{opt}</option>"
+                            yield "</select>"
+                            r.append(f'{field}:document.getElementsByTagName("option")[document.getElementById("{field}").selectedIndex].value,')
+                    yield "<button id='submit'>Submit data</button>"
+                    yield """<script>
+        document.getElementById("submit").onclick = function () {
+                fetch("/api/vector/post",{
+                method:"POST",
+                headers: {
+                    "Accept":"application/json", 
+                    "Content-Type":"application/json"
+                },
+                mode: "cors",
+                body: JSON.stringify({
+                    type:'""" + request.args["vt"] + """',
+                    """ + ''.join(r) + """
+                    target_id:""" + target_id + """,
+                    is_starting:false
+                    })
+                })
+
+                window.location.href = '/target/view/""" + target_id + """'
+        }
+    </script>"""
+        except:
+            yield "<label for='vector_type'>Add a new vector to target:</label>"
+            yield "<select id='vector_type'>"
+            yield "<option>Select One</option>"
+            for vector_type in Config.GetConfig()["vector_types"]:
+                yield f"<option>{vector_type}</option>"
+            yield "</select>"
+
+        yield '<script>document.getElementById("vector_type").onchange = function(){if (document.getElementsByTagName("option")[document.getElementById("vector_type").selectedIndex].value != "Select One") {window.location.href = "/target/view/'+target_id+'?vt=" + document.getElementsByTagName("option")[document.getElementById("vector_type").selectedIndex].value}}</script>'
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    return flask.stream_with_context(generator())
 
 
 @App.route("/api/target/post",methods=["POST"])
@@ -159,13 +248,20 @@ def VPostApi():
 
     conn,cursor = Conn.GetDBConnection()
 
-    # If the vector type is username
-    if vector_type == "username":
-        username = request.get_json()["username"]
-        platform = request.get_json()["platform"]
+    fields = Config.GetConfig()["vector_types"][vector_type]
 
-        cursor.execute("INSERT INTO usernames(username,platform,target_id,is_starting_vector) VALUES (?,?,?,?)",(username,platform,target_id,is_starting),)
+    g = []
+    for param in request.get_json():
+        if param in fields:
+            g.append(param)
 
+    v=[]
+    for param in request.get_json():
+        if param in fields:
+            v.append(request.get_json()[param])
+
+    cursor.execute(f"INSERT INTO {vector_type + "s"}({','.join(g)},target_id,is_starting_vector) VALUES ({len(g) * "?,"}?,?)",(*v,target_id,is_starting),)
+    
     id = cursor.lastrowid
 
     conn.commit()

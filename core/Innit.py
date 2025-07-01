@@ -1,5 +1,6 @@
 
 import sqlite3
+from core import Config
 
 def GenerateDBStructure():
     conn = sqlite3.connect("OSINT.db")
@@ -10,13 +11,20 @@ def GenerateDBStructure():
                 start_vector_type TEXT NOT NULL
     );""")
 
-    conn.execute("""CREATE TABLE IF NOT EXISTS usernames (
-                id INTEGER PRIMARY KEY ASC,
-                username TEXT NOT NULL,
-                platform TEXT NOT NULL,
-                target_id INT NOT NULL,
-                is_starting_vector BOOLEAN DEFAULT FALSE
-    );""")
+    def GenParams(v):
+        for c in Config.GetConfig()['vector_types'][v]:
+            if c.startswith('%'):
+                pass
+            else:
+                yield f"{c} TEXT NOT NULL,\n"
+
+    for v in Config.GetConfig()['vector_types']:
+        conn.execute(f"""CREATE TABLE IF NOT EXISTS {v + 's'} (
+                    {''.join(GenParams(v))}
+                    id INTEGER PRIMARY KEY ASC,
+                    target_id INT NOT NULL,
+                    is_starting_vector BOOLEAN DEFAULT FALSE
+        );""")
 
     conn.commit()
     conn.close()
