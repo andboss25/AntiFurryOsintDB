@@ -5,3 +5,9 @@ def GetDBConnection():
     cursor = conn.cursor()
 
     return conn,cursor
+
+
+def EndDBConnection(conn,cursor):
+    conn.commit()
+    cursor.close()
+    conn.close()
