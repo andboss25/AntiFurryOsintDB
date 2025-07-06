@@ -1,0 +1,4 @@
+waitress
+flask
+pyAesCrypt
+sqlite3
