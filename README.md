@@ -1,6 +1,9 @@
 # Antifurry OSINT DB
 
+## This project is fully archived
 ## This project was made by anti-furries
+
+**Educational uses only**
 
 Anti-furry OSINT DB is a web database interfacte that runs on port 1642 on local host.
 The role of this interface is to give a place for one to store organized targets/investigations with attack vectors.
@@ -8,7 +11,7 @@ Example:
 
 TARGET:
 
-- Username furfag32453
+- Username something32453
 - Platform yotube
   VECTORS 1:
 - phone number: [his phone number here]
